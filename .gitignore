@@ -1,0 +1,20 @@
+# Global
+.DS_Store
+
+# claude-generated files (only for reference)
+.claude-generated/*
+
+# terraform/opentofu
+.terraform.lock.hcl
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+

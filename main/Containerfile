@@ -1,0 +1,55 @@
+FROM public.ecr.aws/lambda/python:3.9
+
+# Install system dependencies
+#RUN yum update -y && \
+#    yum install -y \
+#    git \
+#    gcc \
+#    gcc-c++ \
+#    make
+
+# Install necessary tools and then FFmpeg
+RUN yum update -y && \
+    yum install -y xz tar wget && \
+    mkdir -p /tmp/ffmpeg && \
+    cd /tmp/ffmpeg && \
+    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
+    tar xf ffmpeg-release-amd64-static.tar.xz && \
+    find . -name "ffmpeg" -type f -exec mv {} /usr/local/bin/ \; && \
+    find . -name "ffprobe" -type f -exec mv {} /usr/local/bin/ \; && \
+    chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
+    # Verify installation
+    ffmpeg -version && \
+    # Clean up
+    cd / && \
+    rm -rf /tmp/ffmpeg && \
+    yum clean all && \
+    rm -rf /var/cache/yum
+
+# Set up working directory
+WORKDIR /var/task
+
+# Install Whisper and its dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-download the Whisper model during build
+# The models are cached in ~/.cache/whisper by default
+# Create a script that uses the library's own download mechanism
+RUN mkdir -p /root/.cache/whisper
+COPY download_model.py .
+RUN python download_model.py
+
+# Make the cache directory accessible and relocate it to a standard location in the Lambda environment
+RUN mkdir -p /var/task/.cache && \
+    cp -r /root/.cache/whisper /var/task/.cache/ && \
+    chmod -R 755 /var/task/.cache
+
+# Set environment variable to redirect the cache location
+ENV XDG_CACHE_HOME=/var/task/.cache
+
+# Copy your Lambda function code
+COPY app.py .
+
+# Set the CMD to your handler
+CMD ["app.handler"]

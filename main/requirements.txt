@@ -1,0 +1,5 @@
+openai-whisper
+numpy
+torch
+ffmpeg-python
+boto3

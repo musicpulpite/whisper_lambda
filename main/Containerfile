@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.9
+FROM public.ecr.aws/lambda/python:3.9-arm64
 
 # Install system dependencies
 #RUN yum update -y && \
@@ -8,13 +8,13 @@ FROM public.ecr.aws/lambda/python:3.9
 #    gcc-c++ \
 #    make
 
-# Install necessary tools and then FFmpeg
+# Install necessary tools and then FFmpeg for ARM64
 RUN yum update -y && \
     yum install -y xz tar wget && \
     mkdir -p /tmp/ffmpeg && \
     cd /tmp/ffmpeg && \
-    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
-    tar xf ffmpeg-release-amd64-static.tar.xz && \
+    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz && \
+    tar xf ffmpeg-release-arm64-static.tar.xz && \
     find . -name "ffmpeg" -type f -exec mv {} /usr/local/bin/ \; && \
     find . -name "ffprobe" -type f -exec mv {} /usr/local/bin/ \; && \
     chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \

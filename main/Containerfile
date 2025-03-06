@@ -1,30 +1,49 @@
+FROM public.ecr.aws/lambda/python:3.9-arm64 as ffmpeg-builder
+
+RUN yum update -y && \
+    yum install -y tar xz wget gcc make autoconf automake cmake git && \
+    mkdir -p /ffmpeg_build
+
+WORKDIR /ffmpeg_build
+
+# Build a minimal FFmpeg with only the required components
+RUN git clone --depth 1 https://github.com/FFmpeg/FFmpeg.git && \
+    cd FFmpeg && \
+    ./configure \
+      --prefix=/usr/local \
+      --disable-debug \
+      --disable-doc \
+      --disable-ffplay \
+      --disable-ffprobe \
+      --disable-static \
+      --disable-network \
+      --disable-autodetect \
+      --disable-everything \
+      --enable-small \
+      --enable-avcodec \
+      --enable-avformat \
+      --enable-avfilter \
+      --enable-swresample \
+      --enable-protocol=file \
+      # Ensure all required demuxers are enabled
+      --enable-demuxer=mov,mp3,wav,aac,ogg,flac,matroska,mp4,m4a \
+      # Ensure all required decoders are enabled
+      --enable-decoder=pcm_*,mp3,aac,vorbis,flac,alac \
+      # Enable the PCM encoder needed for the output format
+      --enable-encoder=pcm_s16le \
+      # Enable audio filtering capabilities needed
+      --enable-filter=aresample,aformat,anull,atrim,acopy \
+      --extra-cflags="-Os -ffunction-sections -fdata-sections" \
+      --extra-ldflags="-Wl,--gc-sections" && \
+    make -j$(nproc) && \
+    make install
+
 FROM public.ecr.aws/lambda/python:3.9-arm64
 
-# Install system dependencies
-#RUN yum update -y && \
-#    yum install -y \
-#    git \
-#    gcc \
-#    gcc-c++ \
-#    make
+COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/local/bin/ffmpeg
+COPY --from=ffmpeg-builder /usr/local/lib /usr/local/lib
 
-# Install necessary tools and then FFmpeg for ARM64
-RUN yum update -y && \
-    yum install -y xz tar wget && \
-    mkdir -p /tmp/ffmpeg && \
-    cd /tmp/ffmpeg && \
-    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz && \
-    tar xf ffmpeg-release-arm64-static.tar.xz && \
-    find . -name "ffmpeg" -type f -exec mv {} /usr/local/bin/ \; && \
-    find . -name "ffprobe" -type f -exec mv {} /usr/local/bin/ \; && \
-    chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
-    # Verify installation
-    ffmpeg -version && \
-    # Clean up
-    cd / && \
-    rm -rf /tmp/ffmpeg && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+RUN ldconfig /usr/local/lib
 
 # Set up working directory
 WORKDIR /var/task
@@ -50,6 +69,11 @@ ENV XDG_CACHE_HOME=/var/task/.cache
 
 # Copy your Lambda function code
 COPY app.py .
+
+# Test the installation with the exact command your code uses
+RUN ffmpeg -version && \
+    # Also test conversion from wav and m4a formats (will fail safely but verify command syntax)
+    ffmpeg -nostdin -threads 0 -i /dev/null -f s16le -ac 1 -acodec pcm_s16le -ar 16000 - || true
 
 # Set the CMD to your handler
 CMD ["app.handler"]

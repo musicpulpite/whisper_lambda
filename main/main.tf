@@ -84,6 +84,10 @@ resource "aws_lambda_function" "whisper_transcription" {
       MODEL_SIZE     = var.whisper_model_size
     }
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # RESTful V1 API Gateway 
